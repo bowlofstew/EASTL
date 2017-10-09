@@ -131,8 +131,6 @@ int TestFunctional()
 {
 	using namespace eastl;
 
-	EASTLTest_Printf("TestFunctional\n");
-
 	int nErrorCount = 0;
 
 	{
@@ -390,7 +388,9 @@ int TestFunctional()
 		nErrorCount += TestHashHelper<char8_t>('E');
 		nErrorCount += TestHashHelper<char16_t>(0xEAEA);
 		nErrorCount += TestHashHelper<char32_t>(0x00EA4330);
-		nErrorCount += TestHashHelper<wchar_t>(L'E');
+		#if !defined(EA_WCHAR_T_NON_NATIVE)
+			nErrorCount += TestHashHelper<wchar_t>(L'E');
+		#endif
 		nErrorCount += TestHashHelper<signed short>(4330);
 		nErrorCount += TestHashHelper<unsigned short>(4330u);
 		nErrorCount += TestHashHelper<signed int>(4330);
@@ -677,6 +677,33 @@ int TestFunctional()
 			EATEST_VERIFY(allocCount == 0);
 		}
 	}
+
+	// Checking _MSC_EXTENSIONS is required because the Microsoft calling convention classifiers are only available when
+	// compiler specific C/C++ language extensions are enabled.
+	#if defined(EA_PLATFORM_MICROSOFT) && defined(_MSC_EXTENSIONS)
+	{
+		// no arguments
+		typedef void(__stdcall * StdCallFunction)();
+		typedef void(__cdecl * CDeclFunction)();
+		
+		// only varargs
+		typedef void(__stdcall * StdCallFunctionWithVarargs)(...);
+		typedef void(__cdecl * CDeclFunctionWithVarargs)(...);
+
+		// arguments and varargs
+		typedef void(__stdcall * StdCallFunctionWithVarargsAtEnd)(int, int, int, ...);
+		typedef void(__cdecl * CDeclFunctionWithVarargsAtEnd)(int, short, long, ...);
+
+		static_assert(!eastl::is_function<StdCallFunction>::value, "is_function failure");
+		static_assert(!eastl::is_function<CDeclFunction>::value, "is_function failure");
+		static_assert(eastl::is_function<typename eastl::remove_pointer<StdCallFunction>::type>::value, "is_function failure");
+		static_assert(eastl::is_function<typename eastl::remove_pointer<CDeclFunction>::type>::value, "is_function failure");
+		static_assert(eastl::is_function<typename eastl::remove_pointer<StdCallFunctionWithVarargs>::type>::value, "is_function failure");
+		static_assert(eastl::is_function<typename eastl::remove_pointer<CDeclFunctionWithVarargs>::type>::value, "is_function failure");
+		static_assert(eastl::is_function<typename eastl::remove_pointer<StdCallFunctionWithVarargsAtEnd>::type>::value, "is_function failure");
+		static_assert(eastl::is_function<typename eastl::remove_pointer<CDeclFunctionWithVarargsAtEnd>::type>::value, "is_function failure");
+	}
+	#endif
 #endif // EASTL_FUNCTION_ENABLED
 
 	// Test Function Objects
@@ -938,6 +965,17 @@ int TestFunctional()
 		}
 	}
 	#endif
+
+	// not_fn
+	{
+		{
+			auto ft = eastl::not_fn([] { return true; });
+			auto ff = eastl::not_fn([] { return false; });
+
+			EATEST_VERIFY(ft() == false);
+			EATEST_VERIFY(ff() == true);
+		}
+	}
 
 	return nErrorCount;
 }

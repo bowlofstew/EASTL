@@ -158,6 +158,7 @@
 //    result_of
 //
 //    integral_constant
+//    bool_constant
 //    true_type
 //    false_type
 //
@@ -263,6 +264,9 @@ namespace eastl
 		static const T value = v;
 		typedef T value_type;
 		typedef integral_constant<T, v> type;
+
+		EA_CONSTEXPR operator value_type() const EA_NOEXCEPT { return value; }
+		EA_CONSTEXPR value_type operator()() const EA_NOEXCEPT { return value; }
 	};
 
 
@@ -462,6 +466,93 @@ namespace eastl
 		using conditional_t = typename conditional<B, T, F>::type;
 	#endif
 
+
+
+	///////////////////////////////////////////////////////////////////////
+	// conjunction 
+	//
+	// This is a C++17 standard utility class that performs a short-circuiting
+	// logical AND on a sequence of type traits.
+	//
+	// http://en.cppreference.com/w/cpp/types/conjunction
+	//
+	#if !defined(EA_COMPILER_NO_VARIADIC_TEMPLATES)
+		template <class...>
+		struct conjunction : eastl::true_type {};
+
+		template <class B>
+		struct conjunction<B> : B {};
+
+	    template <class B, class... Bn>
+	    struct conjunction<B, Bn...> : conditional<bool(B::value), conjunction<Bn...>, B>::type {};
+
+        #if EASTL_VARIABLE_TEMPLATES_ENABLED
+			#if EASTL_INLINE_VARIABLE_ENABLED
+				template<class... Bn>
+				inline constexpr bool conjunction_v = conjunction<Bn...>::value;
+			#else
+				template<class... Bn>
+				static const constexpr bool conjunction_v = conjunction<Bn...>::value;
+			#endif
+		#endif
+    #endif
+
+
+
+	///////////////////////////////////////////////////////////////////////
+	// disjunction 
+	//
+	// This is a C++17 standard utility class that performs a short-circuiting
+	// logical OR on a sequence of type traits.
+	//
+	// http://en.cppreference.com/w/cpp/types/disjunction
+	//
+	#if !defined(EA_COMPILER_NO_VARIADIC_TEMPLATES)
+		template <class...>
+		struct disjunction : eastl::false_type {};
+
+		template <class B>
+		struct disjunction<B> : B {};
+
+	    template <class B, class... Bn>
+	    struct disjunction<B, Bn...> : conditional<bool(B::value), B, disjunction<Bn...>>::type {};
+
+        #if EASTL_VARIABLE_TEMPLATES_ENABLED
+			#if EASTL_INLINE_VARIABLE_ENABLED
+				template<class... B>
+				inline constexpr bool disjunction_v = disjunction<B...>::value;
+			#else
+				template<class... B>
+				static const constexpr bool disjunction_v = disjunction<B...>::value;
+			#endif
+		#endif
+    #endif
+
+
+
+	///////////////////////////////////////////////////////////////////////
+	// negation 
+	//
+	// This is a C++17 standard utility class that performs a logical NOT on a
+	// single type trait.
+	//
+	// http://en.cppreference.com/w/cpp/types/negation
+	//
+	template <class B>
+	struct negation : eastl::bool_constant<!bool(B::value)> {};
+
+	#if EASTL_VARIABLE_TEMPLATES_ENABLED
+		#if EASTL_INLINE_VARIABLE_ENABLED
+			template<class B>
+			inline constexpr bool negation_v = negation<B>::value;
+		#else
+			template<class B>
+			static const constexpr bool negation_v = negation<B>::value;
+		#endif
+	#endif
+
+
+
 	///////////////////////////////////////////////////////////////////////
 	// identity
 	//
@@ -629,13 +720,35 @@ namespace eastl
 		struct is_function
 			: public eastl::false_type {};
 
-		template <typename ReturnValue, typename... ArgPack>
-		struct is_function<ReturnValue /*FunctionName*/(ArgPack...)>
-			: public eastl::true_type {};
+		#if EA_PLATFORM_PTR_SIZE == 4 && defined(EA_PLATFORM_MICROSOFT) && defined(_MSC_EXTENSIONS)
+			// __cdecl specialization
+			template <typename ReturnValue, typename... ArgPack>
+			struct is_function<ReturnValue __cdecl (ArgPack...)>
+				: public eastl::true_type {};
 
-		template <typename ReturnValue, typename... ArgPack>
-		struct is_function<ReturnValue /*FunctionName*/(ArgPack..., ...)>    // The second ellipsis handles the case of a function that takes ellipsis, like printf.
-			: public eastl::true_type {};
+			template <typename ReturnValue, typename... ArgPack>
+			struct is_function<ReturnValue __cdecl (ArgPack..., ...)>    // The second ellipsis handles the case of a function that takes ellipsis, like printf.
+				: public eastl::true_type {};
+
+			// __stdcall specialization
+			template <typename ReturnValue, typename... ArgPack>
+			struct is_function<ReturnValue __stdcall (ArgPack...)>
+				: public eastl::true_type {};
+
+			// When functions use a variable number of arguments, it is the caller that cleans the stack (cf. cdecl).
+			//
+			// template <typename ReturnValue, typename... ArgPack>
+			// struct is_function<ReturnValue __stdcall (ArgPack..., ...)>    // The second ellipsis handles the case of a function that takes ellipsis, like printf.
+			//     : public eastl::true_type {};
+		#else 
+			template <typename ReturnValue, typename... ArgPack>
+			struct is_function<ReturnValue (ArgPack...)>
+				: public eastl::true_type {};
+
+			template <typename ReturnValue, typename... ArgPack>
+			struct is_function<ReturnValue (ArgPack..., ...)>    // The second ellipsis handles the case of a function that takes ellipsis, like printf.
+				: public eastl::true_type {};
+		#endif
 	#endif
 
 

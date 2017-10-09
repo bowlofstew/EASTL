@@ -8,6 +8,7 @@
  *    
  *    EA_COMPILER_IS_ANSIC
  *    EA_COMPILER_IS_C99
+ *    EA_COMPILER_IS_C11
  *    EA_COMPILER_HAS_C99_TYPES
  *    EA_COMPILER_IS_CPLUSPLUS
  *    EA_COMPILER_MANAGED_CPP
@@ -112,6 +113,15 @@
 		//
 		#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
 			#define EA_COMPILER_IS_C99 1
+		#endif
+
+ 		// Is the compiler a C11 compiler?
+ 		// From ISO/IEC 9899:2011:
+		//   Page 176, 6.10.8.1 (Predefined macro names) :
+ 		//   __STDC_VERSION__ The integer constant 201112L. (178)
+		//
+		#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
+			#define EA_COMPILER_IS_C11 1
 		#endif
 	#endif
 
@@ -1433,6 +1443,16 @@
 		#endif
 	#endif
 
+	// EA_FP128 may be used to determine if __float128 is a supported type for use. This type is enabled by a GCC extension (_GLIBCXX_USE_FLOAT128)
+	// but has support by some implementations of clang (__FLOAT128__)
+	#ifndef EA_FP128
+		#if defined __FLOAT128__ || defined _GLIBCXX_USE_FLOAT128
+			#define EA_FP128 1
+		#else
+			#define EA_FP128 0
+		#endif
+	#endif
+
 
 	// ------------------------------------------------------------------------
 	// EA_IMPORT
@@ -1728,6 +1748,62 @@
 		#else
 			#define EA_CARRIES_DEPENDENCY [[carries_dependency]]
 		#endif
+	#endif
+
+	
+
+	// ------------------------------------------------------------------------
+	// EA_NO_UBSAN
+	// 
+	// The LLVM/Clang undefined behaviour sanitizer will not analyse a function tagged with the following attribute.
+	//
+	// https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html#disabling-instrumentation-with-attribute-no-sanitize-undefined
+	//
+	// Example usage:
+	//     EA_NO_UBSAN int SomeFunction() { ... }
+	//
+	#ifndef EA_NO_UBSAN
+		#if defined(EA_COMPILER_CLANG)
+			#define EA_NO_UBSAN __attribute__((no_sanitize("undefined")))
+		#else
+			#define EA_NO_UBSAN
+		#endif
+	#endif
+	
+
+	// ------------------------------------------------------------------------
+	// EA_NO_ASAN
+	// 
+	// The LLVM/Clang address sanitizer will not analyse a function tagged with the following attribute.
+	//
+	// https://clang.llvm.org/docs/AddressSanitizer.html#disabling-instrumentation-with-attribute-no-sanitize-address
+	//
+	// Example usage:
+	//     EA_NO_ASAN int SomeFunction() { ... }
+	//
+	#ifndef EA_NO_ASAN
+		#if defined(EA_COMPILER_CLANG)
+			#define EA_NO_ASAN __attribute__((no_sanitize("address")))
+		#else
+			#define EA_NO_ASAN
+		#endif
+	#endif
+
+
+	// ------------------------------------------------------------------------
+	// EA_ASAN_ENABLED
+	//
+	// Defined as 0 or 1. It's value depends on the compile environment.
+	// Specifies whether the code is being built with Clang's Address Sanitizer.
+	//
+	#if defined(__has_feature)
+		#if __has_feature(address_sanitizer)
+			#define EA_ASAN_ENABLED 1
+		#else
+			#define EA_ASAN_ENABLED 0
+		#endif
+	#else
+		#define EA_ASAN_ENABLED 0
 	#endif
 
 
